@@ -100,7 +100,7 @@ checkpoints/
 dataset/binaryAllNaturalPlusNormalVsAttacks
 dataset/data
 dataset/MachineLearningCVE
-saved_models/
+#saved_models/
 test/
 # Trained model files
 *.pth

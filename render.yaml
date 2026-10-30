@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: smart-grid-threat-detection
+    runtime: python
+    plan: free
+    buildCommand: pip install --index-url https://download.pytorch.org/whl/cpu torch==2.10.0 && pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.address 0.0.0.0 --server.port $PORT
