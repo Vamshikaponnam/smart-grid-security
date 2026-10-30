@@ -1,3 +1,5 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 streamlit>=1.38,<2
 numpy>=1.26,<2
 pandas>=2.0,<3
