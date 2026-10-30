@@ -1,0 +1,312 @@
+<title>Smart Grid Security Center</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: operator console. Status banner on top, KPI strip, live graph beside distribution, then response center and event log. */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --panel2:#f5f7f9; --line:#d6dce3;
+  --fg:#17202b; --muted:#5b6877; --accent:#0e6f8f;
+  --safe:#1a8f52; --warn:#c77a06; --crit:#cf2e2e;
+  --safe-bg:#e1f4e9; --warn-bg:#fbefd5; --crit-bg:#fbe1e1;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1218; --panel:#151c25; --panel2:#1b2430; --line:#2a3644;
+  --fg:#e6ebf1; --muted:#93a1b2; --accent:#4cb8d9;
+  --safe:#3fcf86; --warn:#f0a93a; --crit:#ff6464;
+  --safe-bg:#12301f; --warn-bg:#35280f; --crit-bg:#3b1717; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1218; --panel:#151c25; --panel2:#1b2430; --line:#2a3644;
+  --fg:#e6ebf1; --muted:#93a1b2; --accent:#4cb8d9;
+  --safe:#3fcf86; --warn:#f0a93a; --crit:#ff6464;
+  --safe-bg:#12301f; --warn-bg:#35280f; --crit-bg:#3b1717; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.45;
+  padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);font-size:12.5px}
+.note{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;color:var(--muted);font-size:12.5px}
+.note b{color:var(--fg);font-weight:600}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+h2{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+.status{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;border-radius:8px;padding:16px 18px;border:1px solid var(--line);
+  background:var(--st-bg);border-color:var(--st);transition:background .3s,border-color .3s}
+.status[data-s="SAFE"]{--st:var(--safe);--st-bg:var(--safe-bg)}
+.status[data-s="WARNING"]{--st:var(--warn);--st-bg:var(--warn-bg)}
+.status[data-s="CRITICAL"]{--st:var(--crit);--st-bg:var(--crit-bg)}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--st);flex:none}
+.status[data-s="CRITICAL"] .dot{animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.status[data-s="CRITICAL"] .dot{animation:none}}
+.st-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.st-val{font-family:var(--font-mono);font-size:28px;font-weight:500;color:var(--st);line-height:1.1}
+.st-detail{margin-left:auto;text-align:right;min-width:0}
+.st-detail .big{font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kpi .v{font-family:var(--font-mono);font-size:24px;font-weight:500;font-variant-numeric:tabular-nums}
+.kpi .l{color:var(--muted);font-size:12px}
+.row{display:grid;grid-template-columns:3fr 2fr;gap:14px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+svg text{fill:var(--muted);font-family:var(--font-mono);font-size:10px}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar{display:grid;grid-template-columns:118px 1fr 44px;align-items:center;gap:8px;font-size:12.5px}
+.track{height:10px;background:var(--panel2);border-radius:2px;overflow:hidden}
+.fill{height:100%;transition:width .4s}
+.bar .n{font-family:var(--font-mono);text-align:right;font-variant-numeric:tabular-nums}
+.sev{font-size:11px;color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:6px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+button.act{font-weight:600}
+button.act.danger{border-color:var(--crit);color:var(--crit)}
+.hint{color:var(--muted);font-size:12px;margin:8px 0 0}
+.log{font-family:var(--font-mono);font-size:12px;max-height:210px;overflow:auto;display:flex;flex-direction:column;gap:3px}
+.log div{display:grid;grid-template-columns:64px 78px 1fr;gap:8px}
+.log .t{color:var(--muted)}
+.log .tag{font-weight:500}
+.tag.ALERT{color:var(--crit)}.tag.WARN{color:var(--warn)}.tag.AI{color:var(--accent)}.tag.RESPONSE{color:var(--safe)}.tag.INFO{color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1.4fr;gap:14px}
+.spec{font-family:var(--font-mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 16px}
+@media (max-width:760px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .row,.two{grid-template-columns:1fr}
+  .st-detail{margin-left:0;text-align:left;width:100%}
+  .bar{grid-template-columns:104px 1fr 38px}
+  .log div{grid-template-columns:58px 70px 1fr}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Smart Grid Security Center</h1>
+    <span class="sub">AutoEncoder-GAN anomaly detection · 5-class attack classifier</span>
+  </header>
+  <div class="note"><b>Simulated demo.</b> This page replays the project's dashboard with generated sample data in your browser. It does not run the trained PyTorch model; the Streamlit version of the repo does.</div>
+
+  <section id="status" class="status" data-s="SAFE" aria-live="polite">
+    <span class="dot"></span>
+    <div><div class="st-label">Security status</div><div class="st-val" id="stVal">SAFE</div></div>
+    <div class="st-detail"><div class="st-label">Dominant attack</div><div class="big" id="stDom">None</div><div class="sub" id="stAct">No action required</div></div>
+  </section>
+
+  <section class="kpis">
+    <div class="panel kpi"><div class="v" id="kTotal">0</div><div class="l">Samples processed</div></div>
+    <div class="panel kpi"><div class="v" id="kAtk">0</div><div class="l">Attack events</div></div>
+    <div class="panel kpi"><div class="v" id="kAno">0</div><div class="l">Anomalies flagged</div></div>
+    <div class="panel kpi"><div class="v" id="kRate">0%</div><div class="l">Attack rate</div></div>
+  </section>
+
+  <section class="row">
+    <div class="panel">
+      <h2>Live threat activity</h2>
+      <svg id="chart" viewBox="0 0 640 220" width="100%" role="img" aria-label="Threat score over the last 60 batches"></svg>
+      <div class="legend"><span><i style="border-color:var(--accent)"></i>Threat score (0–100)</span><span><i style="border-color:var(--warn);border-top-style:dashed"></i>Warning 20</span><span><i style="border-color:var(--crit);border-top-style:dashed"></i>Critical 50</span></div>
+    </div>
+    <div class="panel">
+      <h2>Attack distribution</h2>
+      <div class="bars" id="bars"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Traffic scenario</h2>
+    <div class="controls" id="scen"></div>
+    <p class="hint">Pick what the simulated grid traffic looks like and watch the status, graph and log react.</p>
+  </section>
+
+  <section class="two">
+    <div class="panel">
+      <h2>Automated response center</h2>
+      <div class="controls">
+        <button class="act danger" data-a="block">Block attack</button>
+        <button class="act" data-a="isolate">Isolate device</button>
+        <button class="act" data-a="investigate">Investigate</button>
+        <button class="act" data-a="reset">Reset</button>
+        <button id="pause" aria-pressed="false">Pause feed</button>
+        <button id="snd" aria-pressed="false">Enable alarm sound</button>
+        <button id="stopAlarm" class="act danger" hidden>Stop alarm</button>
+      </div>
+      <p class="hint">Response actions are simulated and do not control real devices.</p>
+    </div>
+    <div class="panel">
+      <h2>Security event log</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <div class="spec"><span>Input 24 steps × 10 features</span><span>Latent dim 32</span><span>Classes 5</span><span>Severity: SAFE · WARNING · CRITICAL</span></div>
+</div>
+
+<script>
+(function(){
+  var CLASSES=["Normal","Scanning","DDoS Attack","Data Injection","Command Injection"];
+  var SEV={"Normal":"SAFE","Scanning":"WARNING","DDoS Attack":"CRITICAL","Data Injection":"CRITICAL","Command Injection":"CRITICAL"};
+  var COLOR={"Normal":"var(--safe)","Scanning":"var(--warn)","DDoS Attack":"var(--crit)","Data Injection":"var(--crit)","Command Injection":"var(--crit)"};
+  var BATCH=20, MAXPTS=60;
+  var REAL=/*REAL_DATA*/null;
+  var counts, total, anomalies, series, hist, scenario, status, paused=false, logLines;
+
+  function init(){counts={};CLASSES.forEach(function(c){counts[c]=0});total=0;anomalies=0;series=[];hist=[];status="SAFE";logLines=[]}
+  function weights(sc){
+    var w={};CLASSES.forEach(function(c){w[c]=0});
+    if(sc==="Model output"&&REAL){var tt=0;CLASSES.forEach(function(c){tt+=(REAL.counts[c]||0)});CLASSES.forEach(function(c){w[c]=(REAL.counts[c]||0)/(tt||1)});return w}
+    if(sc==="Normal"){w.Normal=.92;w.Scanning=.04;w["DDoS Attack"]=.014;w["Data Injection"]=.013;w["Command Injection"]=.013}
+    else{w[sc]=.72;w.Normal=.16;CLASSES.forEach(function(c){if(c!=="Normal"&&c!==sc)w[c]=.03})}
+    return w;
+  }
+  function pick(w){var r=Math.random(),a=0;for(var i=0;i<CLASSES.length;i++){a+=w[CLASSES[i]];if(r<a)return CLASSES[i]}return "Normal"}
+  function ts(){var d=new Date();return [d.getHours(),d.getMinutes(),d.getSeconds()].map(function(n){return String(n).padStart(2,"0")}).join(":")}
+  function log(tag,msg){logLines.unshift({t:ts(),tag:tag,msg:msg});if(logLines.length>40)logLines.pop()}
+
+  function tick(){
+    var w=weights(scenario),b={},score=0,ano=0;
+    CLASSES.forEach(function(c){b[c]=0});
+    for(var i=0;i<BATCH;i++){
+      var c=pick(w);b[c]++;
+      var atk=c!=="Normal";
+      if(Math.random()<(atk?.72:.03))ano++;
+      if(c==="Scanning")score+=.45;else if(atk)score+=1;
+    }
+    CLASSES.forEach(function(c){counts[c]+=b[c]});
+    total+=BATCH;anomalies+=ano;
+    var raw=score/BATCH*100,prev=series.length?series[series.length-1]:raw;
+    series.push(Math.round((prev*.4+raw*.6)*10)/10);
+    if(series.length>MAXPTS)series.shift();
+    hist.push(b);if(hist.length>8)hist.shift();
+    return {ano:ano,b:b};
+  }
+  function windowState(){
+    var win={},n=0;CLASSES.forEach(function(c){win[c]=0});
+    hist.forEach(function(b){CLASSES.forEach(function(c){win[c]+=b[c];n+=b[c]})});
+    var atk=n-win.Normal,dom=null,max=0;
+    CLASSES.forEach(function(c){if(c!=="Normal"&&win[c]>max){max=win[c];dom=c}});
+    if(!n||atk/n<.18)return {s:"SAFE",dom:null};
+    return {s:SEV[dom]==="WARNING"?"WARNING":"CRITICAL",dom:dom};
+  }
+  var ACTION={SAFE:"No action required",WARNING:"Monitor and investigate scanning source",CRITICAL:"Immediate investigation required"};
+
+  function step(quiet){
+    var r=tick(),ws=windowState();
+    if(ws.s!==status){
+      if(ws.s==="CRITICAL")log("ALERT",ws.dom+" detected");
+      else if(ws.s==="WARNING")log("WARN",ws.dom+" activity detected");
+      else log("INFO","Traffic returned to normal");
+      if(ws.s!=="SAFE")log("AI",r.ano+" anomalous events in latest batch");
+      status=ws.s;
+      if(status==="CRITICAL"){alarmMuted=false;startAlarm()}else{stopAlarm()}
+    }
+    window._dom=ws.dom;
+    if(!quiet)render();
+  }
+
+  function el(id){return document.getElementById(id)}
+
+  /* Alarm: Web Audio siren, plays when status turns CRITICAL, stops after 60 s or on Stop alarm. */
+  var actx=null,soundOn=false,alarmTimer=null,alarmEnd=null,alarmMuted=false;
+  function beep(){
+    if(!actx)return;
+    var o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime;
+    o.type="square";o.frequency.setValueAtTime(880,t);o.frequency.setValueAtTime(660,t+.25);
+    g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.5);
+    o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.5);
+  }
+  function startAlarm(){
+    if(!soundOn||alarmTimer||alarmMuted)return;
+    beep();alarmTimer=setInterval(beep,700);
+    alarmEnd=setTimeout(stopAlarm,60000);
+    el("stopAlarm").hidden=false;
+  }
+  function stopAlarm(){
+    clearInterval(alarmTimer);clearTimeout(alarmEnd);alarmTimer=null;alarmEnd=null;
+    el("stopAlarm").hidden=true;
+  }
+  function render(){
+    var atk=total-counts.Normal;
+    el("kTotal").textContent=total.toLocaleString();
+    el("kAtk").textContent=atk.toLocaleString();
+    el("kAno").textContent=anomalies.toLocaleString();
+    el("kRate").textContent=(total?atk/total*100:0).toFixed(1)+"%";
+    el("status").setAttribute("data-s",status);
+    el("stVal").textContent=status;
+    el("stDom").textContent=window._dom||"None";
+    el("stAct").textContent=ACTION[status];
+    var max=Math.max.apply(null,CLASSES.map(function(c){return counts[c]}).concat([1]));
+    el("bars").innerHTML=CLASSES.map(function(c){
+      return '<div class="bar"><div>'+c+'<div class="sev">'+SEV[c]+'</div></div><div class="track"><div class="fill" style="width:'+(counts[c]/max*100)+'%;background:'+COLOR[c]+'"></div></div><div class="n">'+counts[c]+'</div></div>';
+    }).join("");
+    el("log").innerHTML=logLines.map(function(l){return '<div><span class="t">'+l.t+'</span><span class="tag '+l.tag+'">'+l.tag+'</span><span>'+l.msg+'</span></div>'}).join("");
+    drawChart();
+    document.querySelectorAll("#scen button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.sc===scenario?"true":"false")});
+  }
+  function drawChart(){
+    var W=640,H=220,L=34,R=10,T=10,B=22,pw=W-L-R,ph=H-T-B;
+    function X(i){return L+(MAXPTS<=1?0:i/(MAXPTS-1))*pw}
+    function Y(v){return T+ph-(v/100)*ph}
+    var off=MAXPTS-series.length,s="";
+    [0,25,50,75,100].forEach(function(g){s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(g)+'" y2="'+Y(g)+'" stroke="var(--line)" stroke-width="1"/><text x="'+(L-6)+'" y="'+(Y(g)+3)+'" text-anchor="end">'+g+'</text>'}) ;
+    s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(20)+'" y2="'+Y(20)+'" stroke="var(--warn)" stroke-dasharray="4 4"/>';
+    s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(50)+'" y2="'+Y(50)+'" stroke="var(--crit)" stroke-dasharray="4 4"/>';
+    if(series.length>1){
+      var pts=series.map(function(v,i){return X(i+off).toFixed(1)+","+Y(v).toFixed(1)}).join(" ");
+      s+='<polygon points="'+X(off)+","+Y(0)+" "+pts+" "+X(MAXPTS-1)+","+Y(0)+'" fill="var(--accent)" fill-opacity=".14"/>';
+      s+='<polyline points="'+pts+'" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>';
+      var lv=series[series.length-1];
+      s+='<circle cx="'+X(MAXPTS-1)+'" cy="'+Y(lv)+'" r="4" fill="var(--accent)"/>';
+    }
+    s+='<text x="'+L+'" y="'+(H-6)+'">older</text><text x="'+(W-R)+'" y="'+(H-6)+'" text-anchor="end">now</text>';
+    el("chart").innerHTML=s;
+  }
+
+  function setScenario(sc,silent){
+    scenario=sc;
+    if(!silent)log("INFO","Scenario set: "+(sc==="Normal"?"normal traffic":sc));
+    render();
+  }
+  function build(){
+    el("scen").innerHTML=(REAL?["Model output"]:[]).concat(["Normal"]).concat(CLASSES.slice(1)).map(function(c){
+      return '<button data-sc="'+c+'" aria-pressed="false">'+(c==="Normal"?"Normal traffic":c==="Model output"?"Model output (real)":c)+'</button>';
+    }).join("");
+    el("scen").addEventListener("click",function(e){var b=e.target.closest("button");if(b)setScenario(b.dataset.sc)});
+    document.querySelector(".two").addEventListener("click",function(e){
+      var b=e.target.closest("button");if(!b)return;
+      if(b.id==="snd"){
+        try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.resume)actx.resume()}catch(err){}
+        soundOn=!soundOn;b.setAttribute("aria-pressed",soundOn);
+        b.textContent=soundOn?"Alarm sound on":"Enable alarm sound";
+        if(soundOn){beep();if(status==="CRITICAL"){alarmMuted=false;startAlarm()}}else stopAlarm();
+        return;
+      }
+      if(b.id==="stopAlarm"){alarmMuted=true;stopAlarm();log("RESPONSE","Alarm stopped by operator");render();return}
+      if(b.id==="pause"){paused=!paused;b.setAttribute("aria-pressed",paused);b.textContent=paused?"Resume feed":"Pause feed";return}
+      var a=b.dataset.a;
+      if(a==="block"){log("RESPONSE","Attack source blocked (simulated)");scenario="Normal"}
+      else if(a==="isolate"){log("RESPONSE","Affected device isolated (simulated)");scenario="Normal"}
+      else if(a==="investigate")log("RESPONSE","Investigation started for "+(window._dom||"current traffic"));
+      else if(a==="reset"){init();scenario="Normal";window._dom=null;log("INFO","Dashboard reset")}
+      render();
+    });
+  }
+
+  init();build();
+  /* Opening state: a short scripted history so the first view shows a live incident. */
+  if(REAL){
+    scenario="Model output";for(var k=0;k<44;k++)step(true);
+    CLASSES.forEach(function(c){counts[c]=REAL.counts[c]||0});
+    total=REAL.total;anomalies=REAL.anomalies;
+    var nt=document.querySelector(".note");
+    nt.innerHTML="<b>Real model output.</b> The numbers and attack distribution come from the trained AutoEncoder-GAN and classifier running on "+REAL.total+" synthetic records (anomaly threshold "+REAL.threshold.toFixed(4)+"). The live graph replays batches drawn from those predictions.";
+  }else{
+    scenario="Normal";for(var i=0;i<30;i++)step(true);
+    scenario="Data Injection";for(var j=0;j<14;j++)step(true);
+  }
+  logLines=logLines.filter(function(l){return true});
+  render();
+  setInterval(function(){if(!paused)step(false)},1500);
+})();
+</script>
